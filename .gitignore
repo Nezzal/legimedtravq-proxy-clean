@@ -1,4 +1,42 @@
+# Node.js
 node_modules/
-.DS_Store
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Environnement
 .env
-.next
+.env.local
+.env.*.local
+.env.development
+.env.production
+
+# Build output
+.next/
+out/
+build/
+dist/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Logs
+logs
+*.log
+
+# Tests
+coverage/
+.nyc_output/
+
+# macOS
+._*
+.Spotlight-V100
+.Trashes
+
+# Vercel
+.vercel/
