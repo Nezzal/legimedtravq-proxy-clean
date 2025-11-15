@@ -1,7 +1,7 @@
 // app/api/route/route.js
 export const runtime = 'edge';
 
-const DEFAULT_MODEL = 'google/gemini-2.5-pro-exp-03-25:free';
+const DEFAULT_MODEL = 'mistralai/mistral-7b-instruct:free';
 
 function addCorsHeaders(headers = {}) {
   return {
