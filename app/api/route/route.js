@@ -30,22 +30,17 @@ export async function OPTIONS(request) {
 export async function GET(request) {
   const origin = request.headers.get('origin') || '';
   const hasKey = !!process.env.OPENROUTER_API_KEY;
-  const status = hasKey ? '✅ prêt' : '❌ clé manquante';
   return new Response(
-    JSON.stringify({ status, hasKey, origin }),
+    JSON.stringify({ status: 'ok', hasKey, origin }),
     { headers: addSecureCorsHeaders({ 'Content-Type': 'application/json' }, origin) }
   );
 }
 
 export async function POST(request) {
   const origin = request.headers.get('origin') || '';
-
-  // 🚨 Log pour débogage
   console.log('📡 [PROXY] Requête reçue depuis :', origin);
-  console.log('🔐 Clé présente ?', !!process.env.OPENROUTER_API_KEY);
 
   if (!ALLOWED_ORIGINS.includes(origin)) {
-    console.warn('⚠️ [PROXY] Origine refusée :', origin);
     return new Response(
       JSON.stringify({ error: 'Forbidden: origin not allowed' }),
       { status: 403, headers: addSecureCorsHeaders({ 'Content-Type': 'application/json' }, origin) }
@@ -54,12 +49,8 @@ export async function POST(request) {
 
   try {
     const body = await request.json();
-    console.log('📩 [PROXY] Payload reçu :', JSON.stringify(body, null, 2).substring(0, 300) + '...');
-
     const apiKey = process.env.OPENROUTER_API_KEY;
-    if (!apiKey) {
-      throw new Error('OPENROUTER_API_KEY missing (check Vercel → Environment Variables)');
-    }
+    if (!apiKey) throw new Error('OPENROUTER_API_KEY missing');
 
     const { messages = [], model = DEFAULT_MODEL } = body;
 
@@ -67,7 +58,7 @@ export async function POST(request) {
       throw new Error('messages must be a non-empty array');
     }
 
-    // 📡 Appel à OpenRouter
+    // 🚀 Paramètres optimisés pour les modèles :free
     const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -76,43 +67,38 @@ export async function POST(request) {
         'HTTP-Referer': 'https://nezzal.github.io/LegiMedTravQ/',
         'X-Title': 'LegiMedTravQ',
       },
-      body: JSON.stringify({ model, messages, max_tokens: 1024 }),
+      body: JSON.stringify({
+        model,
+        messages,
+        max_tokens: 512,     // ← limite stricte pour éviter les réponses vides
+        temperature: 0.3,    // ← plus rigoureux, moins aléatoire
+        top_p: 0.9,
+        frequency_penalty: 0.2,
+      }),
     });
 
     const data = await res.json();
-    console.log('📤 [PROXY] Statut OpenRouter :', res.status);
-    if (res.status !== 200) {
-      console.error('❌ [PROXY] Erreur OpenRouter :', JSON.stringify(data, null, 2));
-    } else {
-      const contentPreview = data?.choices?.[0]?.message?.content?.substring(0, 100) || '⚠️ vide';
-      console.log('✅ [PROXY] Réponse reçue (preview) :', contentPreview);
-    }
+    console.log('📤 [PROXY] OpenRouter →', res.status, '| tokens:', data?.usage?.total_tokens || 'N/A');
 
-    // 📦 Format standard garanti pour le frontend
-    const safeResponse = {
+    // 📦 Format garanti pour le frontend
+    return new Response(JSON.stringify({
       status: res.status,
       success: res.ok,
       data: res.ok ? data : null,
       error: !res.ok ? data.error || 'Unknown error' : null,
-    };
-
-    return new Response(JSON.stringify(safeResponse), {
+    }), {
       status: res.status,
       headers: addSecureCorsHeaders({ 'Content-Type': 'application/json' }, origin),
     });
 
   } catch (err) {
-    console.error('💥 [PROXY] Erreur interne :', err.message, err.stack?.split('\n')[0]);
-    return new Response(
-      JSON.stringify({
-        success: false,
-        error: `Proxy error: ${err.message}`,
-        details: process.env.NODE_ENV === 'development' ? err.stack : undefined,
-      }),
-      {
-        status: 500,
-        headers: addSecureCorsHeaders({ 'Content-Type': 'application/json' }, origin),
-      }
-    );
+    console.error('💥 [PROXY] Erreur interne :', err.message);
+    return new Response(JSON.stringify({
+      success: false,
+      error: `Proxy error: ${err.message}`,
+    }), {
+      status: 500,
+      headers: addSecureCorsHeaders({ 'Content-Type': 'application/json' }, origin),
+    });
   }
 }
